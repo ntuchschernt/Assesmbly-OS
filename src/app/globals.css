@@ -1,0 +1,85 @@
+@import "tailwindcss";
+
+/* ============================================================
+   ASSEMBLY OS – Design System "Industrial Pro"
+   All colors are tokens; components only use token utilities.
+   ============================================================ */
+
+@theme {
+  --color-bg: #111315;
+  --color-sidebar: #191c1f;
+  --color-surface: #202428;
+  --color-elevated: #272c30;
+  --color-hover: #2e3439;
+  --color-primary: #ff7a1a;
+  --color-primary-hover: #ff913d;
+  --color-primary-soft: rgb(255 122 26 / 0.12);
+  --color-fg: #f4f5f6;
+  --color-muted: #9aa1a8;
+  --color-subtle: #6b737b;
+  --color-border: #353b40;
+  --color-border-strong: #454c52;
+  --color-success: #32b67a;
+  --color-warning: #e8aa45;
+  --color-danger: #e05b55;
+  --color-info: #6e9fc9;
+
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+  body {
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11";
+    -webkit-font-smoothing: antialiased;
+  }
+  * {
+    border-color: var(--color-border);
+  }
+  ::selection {
+    background: rgb(255 122 26 / 0.35);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(0.7);
+  }
+  /* thin technical scrollbars */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border-strong) transparent;
+  }
+}
+
+@layer components {
+  /* Engineering grid used on empty states and the login screen */
+  .bg-grid {
+    background-image:
+      linear-gradient(to right, rgb(255 255 255 / 0.03) 1px, transparent 1px),
+      linear-gradient(to bottom, rgb(255 255 255 / 0.03) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+  .label-caps {
+    font-size: var(--text-2xs);
+    line-height: var(--text-2xs--line-height);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--color-muted);
+  }
+}
