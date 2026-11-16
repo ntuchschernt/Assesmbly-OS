@@ -7,7 +7,8 @@
  */
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Cell, type TooltipProps } from "recharts";
 
-export const SERIES = { a: "#E86A1F", b: "#4A90D9" };
+import { SERIES } from "./palette";
+export { SERIES };
 const AXIS = { stroke: "#353B40", tick: { fill: "#9AA1A8", fontSize: 11 }, tickLine: false };
 
 function ChartTooltip({ active, payload, label, unit }: TooltipProps<number, string> & { unit?: string }) {

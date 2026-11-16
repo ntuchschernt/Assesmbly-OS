@@ -10,35 +10,9 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Checkbox, Field, Input, Select, Textarea, type SelectOption } from "@/components/ui/input";
 import { saveInstruction } from "@/actions/instructions";
 import { cn } from "@/lib/utils";
+import { emptyStep, newStepKey as newKey, type InstructionDraft, type StepDraft } from "./draft";
 
-export type StepDraft = {
-  key: string;
-  id?: string;
-  title: string;
-  description: string;
-  tools: string;
-  parts: string;
-  expectedResult: string;
-  isCheckpoint: boolean;
-  safetyCritical: boolean;
-  imageUrl: string;
-  responsibleId: string;
-};
-
-export type InstructionDraft = {
-  title: string;
-  description: string;
-  assemblyId: string;
-  tools: string;
-  materials: string;
-  safetyNotes: string;
-  imageUrls: string;
-  steps: StepDraft[];
-};
-
-let keySeq = 0;
-const newKey = () => `new-${Date.now()}-${keySeq++}`;
-export const emptyStep = (): StepDraft => ({ key: newKey(), title: "", description: "", tools: "", parts: "", expectedResult: "", isCheckpoint: false, safetyCritical: false, imageUrl: "", responsibleId: "" });
+export type { StepDraft, InstructionDraft };
 
 const lines = (s: string) => s.split(/\n|,/).map((x) => x.trim()).filter(Boolean);
 

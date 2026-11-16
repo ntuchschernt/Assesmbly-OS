@@ -94,7 +94,7 @@ Status-Enums exakt nach Vorgabe: ProjectStatus, TaskStatus, InstructionStatus, D
 | 5 | AI Copilot (Demo-Provider), globale Suche, Notifications, Reporting | ✅ |
 | 6 | Fehlerbehebung, Responsiveness, Tests, Dokumentation | ✅ |
 
-Der detaillierte Fortschritt steht in `docs/PROGRESS.md`.
+Der detaillierte Fortschritt (inkl. gefundener und behobener Fehler) steht in `docs/PROGRESS.md`.
 
 ## 6. Abhängigkeiten (bewusst minimal)
 

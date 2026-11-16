@@ -11,7 +11,7 @@ export function tokenize(text: string): string[] {
     .toLowerCase()
     .normalize("NFKD")
     .replace(/[̀-ͯ]/g, "")
-    .split(/[^a-z0-9.\-×]+/)
+    .split(/[^a-z0-9ß.\-×]+/)
     .map((t) => t.replace(/^[.\-]+|[.\-]+$/g, ""))
     .filter((t) => t.length > 1 && !STOPWORDS.has(t));
 }

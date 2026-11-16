@@ -3,7 +3,8 @@ import { userOptions } from "@/lib/services/users";
 import { assemblySelectOptions, imageOptions } from "@/lib/services/instruction-options";
 import { PageHeader } from "@/components/ui/misc";
 import { Badge } from "@/components/ui/badge";
-import { InstructionEditor, emptyStep } from "@/components/instructions/instruction-editor";
+import { InstructionEditor } from "@/components/instructions/instruction-editor";
+import { emptyStep } from "@/components/instructions/draft";
 
 export const metadata = { title: "Neue Montageanweisung" };
 

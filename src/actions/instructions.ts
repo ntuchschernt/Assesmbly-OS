@@ -41,7 +41,7 @@ export async function saveInstruction(id: string | null, input: unknown): Promis
       const number = `WI-${String((Number(last?.number.slice(3)) || 0) + 1).padStart(4, "0")}`;
       const wi = await db.$transaction(async (tx) => {
         const created = await tx.workInstruction.create({
-          data: { ...data, workspaceId: ctx.workspaceId, number, authorId: ctx.user.id, status: "DRAFT", version: 1, steps: { create: steps.map(({ id: _id, ...s }, i) => ({ ...s, order: i + 1 })) } },
+          data: { ...data, workspaceId: ctx.workspaceId, number, authorId: ctx.user.id, status: "DRAFT", version: 1, steps: { create: steps.map((s, i) => ({ ...withoutId(s), order: i + 1 })) } },
         });
         await writeRevision(tx, created.id, ctx.user.id, "Entwurf angelegt");
         return created;
@@ -149,4 +149,10 @@ export async function linkDocumentToInstruction(instructionId: string, documentI
     revalidatePath(`/work-instructions/${instructionId}`);
     return { ok: true, message: linked ? `${doc.number} verknüpft` : `${doc.number} entfernt` };
   });
+}
+
+function withoutId<T extends { id?: string }>(s: T): Omit<T, "id"> {
+  const copy = { ...s };
+  delete copy.id;
+  return copy;
 }

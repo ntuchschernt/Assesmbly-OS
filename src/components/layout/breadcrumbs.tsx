@@ -33,9 +33,11 @@ function fallbackCrumbs(pathname: string): Crumb[] {
   const parts = pathname.split("/").filter(Boolean);
   const crumbs: Crumb[] = [];
   let href = "";
+  // Segments without an index page link to their parent module (no dead links).
+  const indexOverride: Record<string, string> = { "work-orders": "/assembly", assemblies: "/assembly", machines: "/assembly" };
   for (const p of parts) {
     href += `/${p}`;
-    crumbs.push({ label: SEGMENT_LABELS[p] ?? "Details", href });
+    crumbs.push({ label: SEGMENT_LABELS[p] ?? "Details", href: indexOverride[p] ?? href });
   }
   return crumbs;
 }
