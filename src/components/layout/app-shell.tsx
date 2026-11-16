@@ -32,7 +32,9 @@ export function AppShell({ children, ...props }: ShellProps) {
     }
   }, []);
 
-  useEffect(() => setMobileOpen(false), [pathname]);
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
 
   const toggle = () => {
     setCollapsed((c) => {

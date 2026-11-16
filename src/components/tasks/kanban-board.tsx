@@ -34,7 +34,9 @@ export function KanbanBoard({ tasks, onCreate }: { tasks: Card[]; onCreate?: (st
   const router = useRouter();
   const [items, setItems] = useState(tasks);
   const [activeId, setActiveId] = useState<string | null>(null);
-  useEffect(() => setItems(tasks), [tasks]);
+  useEffect(() => {
+    setItems(tasks);
+  }, [tasks]);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), useSensor(KeyboardSensor));
   const columns = useMemo(() => {
