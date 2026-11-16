@@ -1,0 +1,569 @@
+// ASSEMBLY OS – relational data model
+// Hierarchy: Project -> Machine -> Assembly (self-relation = Subassembly) -> WorkOrder -> WorkInstruction -> WorkStep
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------- Identity
+
+enum UserRole {
+  ADMIN
+  PROJECT_MANAGER
+  ENGINEER
+  TECHNICIAN
+  QUALITY
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         UserRole @default(ENGINEER)
+  title        String?
+  createdAt    DateTime @default(now())
+
+  ownedProjects        Project[]          @relation("ProjectOwner")
+  assignedTasks        Task[]             @relation("TaskAssignee")
+  reportedTasks        Task[]             @relation("TaskReporter")
+  taskComments         TaskComment[]
+  attachments          Attachment[]
+  responsibleAssembly  Assembly[]         @relation("AssemblyResponsible")
+  workOrders           WorkOrder[]        @relation("WorkOrderAssignee")
+  timeEntries          TimeEntry[]
+  authoredInstructions WorkInstruction[]  @relation("InstructionAuthor")
+  approvedInstructions WorkInstruction[]  @relation("InstructionApprover")
+  instructionRevisions InstructionRevision[]
+  responsibleSteps     WorkStep[]         @relation("StepResponsible")
+  stepExecutions       StepExecution[]
+  ownedDocuments       Document[]         @relation("DocumentOwner")
+  documentVersions     DocumentVersion[]
+  reportedIssues       QualityIssue[]     @relation("IssueReporter")
+  assignedIssues       QualityIssue[]     @relation("IssueAssignee")
+  qualityActions       QualityAction[]
+  notifications        Notification[]
+  activities           Activity[]
+}
+
+model Workspace {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+
+  projects         Project[]
+  tasks            Task[]
+  workInstructions WorkInstruction[]
+  documents        Document[]
+  qualityIssues    QualityIssue[]
+  notifications    Notification[]
+  activities       Activity[]
+}
+
+// ---------------------------------------------------------------- Projects
+
+enum ProjectStatus {
+  PLANNING
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  ARCHIVED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  workspaceId String
+  key         String
+  name        String
+  description String?
+  customer    String?
+  status      ProjectStatus @default(PLANNING)
+  priority    Priority      @default(MEDIUM)
+  startDate   DateTime?
+  endDate     DateTime?
+  ownerId     String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  owner         User?          @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  machines      Machine[]
+  tasks         Task[]
+  documents     Document[]
+  qualityIssues QualityIssue[]
+
+  @@unique([workspaceId, key])
+}
+
+// ---------------------------------------------------------------- Assembly
+
+enum MachineStatus {
+  PLANNED
+  IN_ASSEMBLY
+  TESTING
+  COMPLETED
+}
+
+model Machine {
+  id           String        @id @default(cuid())
+  projectId    String
+  code         String
+  name         String
+  serialNumber String?
+  description  String?
+  status       MachineStatus @default(PLANNED)
+  createdAt    DateTime      @default(now())
+
+  project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assemblies    Assembly[]
+  qualityIssues QualityIssue[]
+}
+
+enum AssemblyStatus {
+  PLANNED
+  IN_PROGRESS
+  BLOCKED
+  COMPLETED
+}
+
+/// An assembly ("Baugruppe"). If parentId is set it is a subassembly ("Unterbaugruppe").
+model Assembly {
+  id            String         @id @default(cuid())
+  machineId     String
+  parentId      String?
+  code          String
+  name          String
+  description   String?
+  status        AssemblyStatus @default(PLANNED)
+  responsibleId String?
+  createdAt     DateTime       @default(now())
+
+  machine          Machine           @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  parent           Assembly?         @relation("AssemblyTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children         Assembly[]        @relation("AssemblyTree")
+  responsible      User?             @relation("AssemblyResponsible", fields: [responsibleId], references: [id], onDelete: SetNull)
+  workOrders       WorkOrder[]
+  tasks            Task[]
+  documents        Document[]
+  qualityIssues    QualityIssue[]
+  workInstructions WorkInstruction[]
+}
+
+enum WorkOrderStatus {
+  PLANNED
+  RELEASED
+  IN_PROGRESS
+  PAUSED
+  COMPLETED
+}
+
+model WorkOrder {
+  id                String          @id @default(cuid())
+  number            String          @unique
+  assemblyId        String
+  workInstructionId String?
+  title             String
+  description       String?
+  status            WorkOrderStatus @default(PLANNED)
+  priority          Priority        @default(MEDIUM)
+  assigneeId        String?
+  plannedHours      Float           @default(0)
+  dueDate           DateTime?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime        @default(now())
+
+  assembly        Assembly         @relation(fields: [assemblyId], references: [id], onDelete: Cascade)
+  workInstruction WorkInstruction? @relation(fields: [workInstructionId], references: [id], onDelete: SetNull)
+  assignee        User?            @relation("WorkOrderAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  timeEntries     TimeEntry[]
+  stepExecutions  StepExecution[]
+  tasks           Task[]
+  qualityIssues   QualityIssue[]
+}
+
+model TimeEntry {
+  id          String   @id @default(cuid())
+  workOrderId String
+  userId      String
+  minutes     Int
+  note        String?
+  date        DateTime @default(now())
+
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------- Work instructions
+
+enum InstructionStatus {
+  DRAFT
+  IN_REVIEW
+  APPROVED
+  PUBLISHED
+}
+
+/// The editable working copy. Released content for production is ALWAYS read
+/// from an InstructionRevision with status PUBLISHED (immutable snapshot).
+model WorkInstruction {
+  id           String            @id @default(cuid())
+  workspaceId  String
+  number       String
+  title        String
+  description  String?
+  assemblyId   String?
+  status       InstructionStatus @default(DRAFT)
+  version      Int               @default(1)
+  tools        String[]
+  materials    String[]
+  safetyNotes  String?
+  imageUrls    String[]
+  authorId     String?
+  approvedById String?
+  approvedAt   DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  workspace  Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  assembly   Assembly?             @relation(fields: [assemblyId], references: [id], onDelete: SetNull)
+  author     User?                 @relation("InstructionAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  approvedBy User?                 @relation("InstructionApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  steps      WorkStep[]
+  revisions  InstructionRevision[]
+  workOrders WorkOrder[]
+  documents  Document[]
+
+  @@unique([workspaceId, number])
+}
+
+model WorkStep {
+  id             String  @id @default(cuid())
+  instructionId  String
+  order          Int
+  title          String
+  description    String
+  tools          String[]
+  parts          String[]
+  expectedResult String?
+  isCheckpoint   Boolean @default(false)
+  safetyCritical Boolean @default(false)
+  imageUrl       String?
+  responsibleId  String?
+
+  instruction WorkInstruction @relation(fields: [instructionId], references: [id], onDelete: Cascade)
+  responsible User?           @relation("StepResponsible", fields: [responsibleId], references: [id], onDelete: SetNull)
+}
+
+/// Immutable snapshot written on every status transition (version history + release record).
+model InstructionRevision {
+  id            String            @id @default(cuid())
+  instructionId String
+  version       Int
+  status        InstructionStatus
+  snapshot      Json
+  changeNote    String?
+  createdById   String?
+  createdAt     DateTime          @default(now())
+
+  instruction WorkInstruction @relation(fields: [instructionId], references: [id], onDelete: Cascade)
+  createdBy   User?           @relation(fields: [createdById], references: [id], onDelete: SetNull)
+}
+
+enum StepExecutionStatus {
+  PENDING
+  DONE
+  FAILED
+}
+
+/// Execution status of a work step within a concrete work order.
+/// stepId references the step id inside the published snapshot (stable across versions).
+model StepExecution {
+  id            String              @id @default(cuid())
+  workOrderId   String
+  stepId        String
+  version       Int
+  status        StepExecutionStatus @default(PENDING)
+  resultNote    String?
+  completedById String?
+  completedAt   DateTime?
+
+  workOrder   WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  completedBy User?     @relation(fields: [completedById], references: [id], onDelete: SetNull)
+
+  @@unique([workOrderId, stepId])
+}
+
+// ---------------------------------------------------------------- Tasks
+
+enum TaskStatus {
+  OPEN
+  IN_PROGRESS
+  REVIEW
+  BLOCKED
+  DONE
+}
+
+model Task {
+  id          String     @id @default(cuid())
+  workspaceId String
+  number      Int
+  title       String
+  description String?
+  status      TaskStatus @default(OPEN)
+  priority    Priority   @default(MEDIUM)
+  position    Float      @default(0)
+  labels      String[]
+  dueDate     DateTime?
+  completedAt DateTime?
+  projectId   String?
+  assemblyId  String?
+  workOrderId String?
+  assigneeId  String?
+  reporterId  String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project       Project?       @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  assembly      Assembly?      @relation(fields: [assemblyId], references: [id], onDelete: SetNull)
+  workOrder     WorkOrder?     @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
+  assignee      User?          @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  reporter      User?          @relation("TaskReporter", fields: [reporterId], references: [id], onDelete: SetNull)
+  comments      TaskComment[]
+  attachments   Attachment[]
+  qualityIssues QualityIssue[]
+
+  @@unique([workspaceId, number])
+}
+
+model TaskComment {
+  id        String   @id @default(cuid())
+  taskId    String
+  authorId  String
+  body      String
+  createdAt DateTime @default(now())
+
+  task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+}
+
+model Attachment {
+  id           String   @id @default(cuid())
+  taskId       String
+  fileName     String
+  mimeType     String
+  size         Int
+  storageKey   String
+  uploadedById String?
+  createdAt    DateTime @default(now())
+
+  task       Task  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  uploadedBy User? @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+}
+
+// ---------------------------------------------------------------- Documents
+
+enum DocumentType {
+  PDF
+  DRAWING
+  IMAGE
+  WORK_INSTRUCTION
+  INSPECTION_REPORT
+  BOM
+}
+
+enum DocumentStatus {
+  DRAFT
+  REVIEW
+  APPROVED
+  ARCHIVED
+}
+
+model Document {
+  id                String         @id @default(cuid())
+  workspaceId       String
+  number            String
+  title             String
+  description       String?
+  type              DocumentType
+  category          String?
+  status            DocumentStatus @default(DRAFT)
+  tags              String[]
+  /// Extracted plain text (demo content / future OCR + parsing). Used by the AI retriever.
+  extractedText     String?
+  currentVersion    Int            @default(1)
+  projectId         String?
+  assemblyId        String?
+  workInstructionId String?
+  ownerId           String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  workspace       Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project         Project?          @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  assembly        Assembly?         @relation(fields: [assemblyId], references: [id], onDelete: SetNull)
+  workInstruction WorkInstruction?  @relation(fields: [workInstructionId], references: [id], onDelete: SetNull)
+  owner           User?             @relation("DocumentOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  versions        DocumentVersion[]
+  qualityIssues   QualityIssue[]
+
+  @@unique([workspaceId, number])
+}
+
+model DocumentVersion {
+  id           String   @id @default(cuid())
+  documentId   String
+  version      Int
+  fileName     String
+  mimeType     String
+  size         Int
+  /// null = metadata-only demo record without stored binary
+  storageKey   String?
+  changeNote   String?
+  uploadedById String?
+  createdAt    DateTime @default(now())
+
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  uploadedBy User?    @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@unique([documentId, version])
+}
+
+// ---------------------------------------------------------------- Quality
+
+enum QualityIssueType {
+  DEFECT
+  DEVIATION
+  INSPECTION
+  COMPLAINT
+}
+
+enum Severity {
+  MINOR
+  MAJOR
+  CRITICAL
+}
+
+enum QualityStatus {
+  NEW
+  INVESTIGATING
+  ACTION_REQUIRED
+  IN_REVIEW
+  RESOLVED
+  CLOSED
+}
+
+model QualityIssue {
+  id          String           @id @default(cuid())
+  workspaceId String
+  number      String
+  title       String
+  description String
+  type        QualityIssueType @default(DEFECT)
+  severity    Severity         @default(MAJOR)
+  status      QualityStatus    @default(NEW)
+  rootCause   String?
+  dueDate     DateTime?
+  resolvedAt  DateTime?
+  reporterId  String?
+  assigneeId  String?
+  projectId   String?
+  machineId   String?
+  assemblyId  String?
+  workOrderId String?
+  taskId      String?
+  documentId  String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  reporter  User?           @relation("IssueReporter", fields: [reporterId], references: [id], onDelete: SetNull)
+  assignee  User?           @relation("IssueAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  project   Project?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  machine   Machine?        @relation(fields: [machineId], references: [id], onDelete: SetNull)
+  assembly  Assembly?       @relation(fields: [assemblyId], references: [id], onDelete: SetNull)
+  workOrder WorkOrder?      @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
+  task      Task?           @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  document  Document?       @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  actions   QualityAction[]
+
+  @@unique([workspaceId, number])
+}
+
+enum QualityActionType {
+  CONTAINMENT
+  CORRECTIVE
+  PREVENTIVE
+  VERIFICATION
+}
+
+model QualityAction {
+  id          String            @id @default(cuid())
+  issueId     String
+  title       String
+  type        QualityActionType @default(CORRECTIVE)
+  assigneeId  String?
+  dueDate     DateTime?
+  done        Boolean           @default(false)
+  result      String?
+  createdAt   DateTime          @default(now())
+
+  issue    QualityIssue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  assignee User?        @relation(fields: [assigneeId], references: [id], onDelete: SetNull)
+}
+
+// ---------------------------------------------------------------- Notifications & activity
+
+enum NotificationType {
+  TASK_ASSIGNED
+  TASK_OVERDUE
+  WORK_ORDER_COMPLETED
+  QUALITY_ISSUE_CREATED
+  DOCUMENT_REVIEW
+  INSTRUCTION_REVIEW
+  COMMENT
+}
+
+model Notification {
+  id          String           @id @default(cuid())
+  workspaceId String
+  userId      String
+  type        NotificationType
+  title       String
+  body        String?
+  link        String?
+  readAt      DateTime?
+  createdAt   DateTime         @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Activity {
+  id          String   @id @default(cuid())
+  workspaceId String
+  actorId     String?
+  entityType  String
+  entityId    String
+  action      String
+  summary     String
+  link        String?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor     User?     @relation(fields: [actorId], references: [id], onDelete: SetNull)
+}
